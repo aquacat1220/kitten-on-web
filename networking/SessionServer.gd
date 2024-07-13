@@ -10,8 +10,11 @@ var open_sessions: Dictionary = {}
 # `sealed_sessions`is a dictionary from session code (String) to a a dictionary from peer id (int) to a length-2 array of WebSocketPeer and its readiness.
 var sealed_sessions: Dictionary = {}
 
-func listen(listen_address: String, listen_port: int) -> Error:
-	return listen_server.listen(listen_port, listen_address)
+func listen(listen_port: int) -> Error:
+	return listen_server.listen(listen_port)
+
+func is_listening() -> bool:
+	return listen_server.is_listening()
 
 # Called every frame. 'delta' is the elapsed time since the previous frame.
 func _process(delta) -> void:
@@ -25,7 +28,8 @@ func _process(delta) -> void:
 	while listen_server.is_connection_available():
 		var orphan = WebSocketPeer.new()
 		# If `accept_stream()` fails for some reason, ignore this stream. The client will retry if it is desperate.
-		if !orphan.accept_stream(listen_server.take_connection()):
+		if orphan.accept_stream(listen_server.take_connection()):
+			printerr("Error: Failed to accept a stream.")
 			continue
 		orphans.append(orphan)
 	
@@ -67,9 +71,9 @@ func _process(delta) -> void:
 					# `body` of a JOIN denotes the session code.
 					# Session code of "" denotes a HOST. Create a new open session and move this orphan to it.
 					if message.body == "":
-						var session_code = random_string()
+						var session_code = SessionServer.random_string()
 						while (session_code in open_sessions) || (session_code in sealed_sessions):
-							session_code = random_string()
+							session_code = SessionServer.random_string()
 						var open_session = { 1: orphan }
 						orphans.erase(orphan)
 						open_sessions[session_code] = open_session
@@ -82,7 +86,7 @@ func _process(delta) -> void:
 						# If no matching session is found, reply with an ERROR.
 						if !(session_code in open_sessions):
 							printerr("Error: Received a JOIN to a nonexistant session from an orphan. Expecting JOIN message bodies to contain codes for existing sessions, or an empty string. \"{session_code}\" was neither of two.")
-							var reply = Message.new(Message.Type.ERROR, 0, 0, "Expecting JOIN message bodies to contain codes for existing sessions, or an empty string. \"{session_code}\" was neither of two." % {"session_code": session_code}).as_json().to_utf8_buffer()
+							var reply = Message.new(Message.Type.ERROR, 0, 0, "Expecting JOIN message bodies to contain codes for existing sessions, or an empty string. \"{session_code}\" was neither of two.".format({"session_code": session_code})).as_json().to_utf8_buffer()
 							orphan.put_packet(reply)
 							continue
 						# Else, we have a matching session. Move this orphan to it, and notify all session members.
@@ -140,33 +144,33 @@ func _process(delta) -> void:
 						var message = Message.from_json(peer.get_packet().get_string_from_utf8())
 						# If received message wasn't properly formatted, send back an ERROR.
 						if !message:
-							printerr("Error: Received a malformed message from peer {peer_id} of an open session \"{session_code}\". Expecting properly formatted messages." % {"peer_id": peer_id, "session_code": session_code })
-							var reply = Message.new(Message.Type.ERROR, 0, 0, "Expecting properly formatted messages.").as_json().to_utf8_buffer()
+							printerr("Error: Received a malformed message from peer {peer_id} of an open session \"{session_code}\". Expecting properly formatted messages.".format({"peer_id": peer_id, "session_code": session_code }))
+							var reply = Message.new(Message.Type.ERROR, 0, peer_id, "Expecting properly formatted messages.").as_json().to_utf8_buffer()
 							peer.put_packet(reply)
 							continue
 						# If received message isn't a SEAL or a RELAY, send back an ERROR.
 						if (message.type != Message.Type.SEAL) && (message.type != Message.Type.RELAY):
-							printerr("Error: Received a non-SEAL/RELAY message from peer {peer_id} of an open session \"{session_code}\". Expecting SEAL or RELAY messages from a peer of an open session." % {"peer_id": peer_id, "session_code": session_code })
-							var reply = Message.new(Message.Type.ERROR, 0, 0, "Expecting SEAL or RELAY messages from a peer of an open session.").as_json().to_utf8_buffer()
+							printerr("Error: Received a non-SEAL/RELAY message from peer {peer_id} of an open session \"{session_code}\". Expecting SEAL or RELAY messages from a peer of an open session.".format({"peer_id": peer_id, "session_code": session_code }))
+							var reply = Message.new(Message.Type.ERROR, 0, peer_id, "Expecting SEAL or RELAY messages from a peer of an open session.").as_json().to_utf8_buffer()
 							peer.put_packet(reply)
 							continue
 						# If `src_peer` is trying to impersonate someone else, send back an ERROR.
 						if message.src_peer != peer_id:
-							printerr("Error: Received a message with src_peer {src_peer} from peer {peer_id} of an open session \"{session_code}\". Expecting messages to have src_peer matching its peer id." % {"src_peer": message.src_peer, "peer_id": peer_id, "session_code": session_code })
-							var reply = Message.new(Message.Type.ERROR, 0, 0, "Expecting messages to have src_peer matching its peer id.").as_json().to_utf8_buffer()
+							printerr("Error: Received a message with src_peer {src_peer} from peer {peer_id} of an open session \"{session_code}\". Expecting messages to have src_peer matching its peer id.".format({"src_peer": message.src_peer, "peer_id": peer_id, "session_code": session_code }))
+							var reply = Message.new(Message.Type.ERROR, 0, peer_id, "Expecting messages to have src_peer matching its peer id.").as_json().to_utf8_buffer()
 							peer.put_packet(reply)
 							continue
 						# Process SEALs.
 						if message.type == Message.Type.SEAL:
 							# If the SEAL is not from a host, or not for the server, send back an ERROR.
 							if (message.src_peer != 1) || (message.dst_peer != 0):
-								printerr("Error: Received a SEAL message with src_peer {src_peer} and dst_peer {dst_peer} from peer {peer_id} of an open session \"{session_code}\". Expecting SEAL messages to have src_peer of 1 (the host) and dst_peer of 0 (the server)." % {"src_peer": message.src_peer, "dst_peer": message.dst_peer, "peer_id": peer_id, "session_code": session_code })
-								var reply = Message.new(Message.Type.ERROR, 0, 0, "Expecting SEAL messages to have src_peer of 1 (the host) and dst_peer of 0 (the server).").as_json().to_utf8_buffer()
+								printerr("Error: Received a SEAL message with src_peer {src_peer} and dst_peer {dst_peer} from peer {peer_id} of an open session \"{session_code}\". Expecting SEAL messages to have src_peer of 1 (the host) and dst_peer of 0 (the server).".format({"src_peer": message.src_peer, "dst_peer": message.dst_peer, "peer_id": peer_id, "session_code": session_code }))
+								var reply = Message.new(Message.Type.ERROR, 0, peer_id, "Expecting SEAL messages to have src_peer of 1 (the host) and dst_peer of 0 (the server).").as_json().to_utf8_buffer()
 								peer.put_packet(reply)
 								continue
 							# Else, the SEAL *is* from the host. Move the session to `sealed_sessions`, and notify seal.
 							open_sessions.erase(session_code)
-							var sealed_session = into_sealed_session(open_session)
+							var sealed_session = SessionServer.into_sealed_session(open_session)
 							sealed_sessions[session_code] = sealed_session
 							notify_seal(sealed_session)
 							break
@@ -174,8 +178,8 @@ func _process(delta) -> void:
 						if message.type == Message.Type.RELAY:
 							# If the RELAY has an invalid dst_peer, send back an ERROR.
 							if !(message.dst_peer in open_session):
-								printerr("Error: Received a RELAY message with dst_peer {dst_peer} from peer {peer_id} of an open session \"{session_code}\". Expecting RELAY messages to have valid dst_peer ids." % {"dst_peer": message.dst_peer, "peer_id": peer_id, "session_code": session_code })
-								var reply = Message.new(Message.Type.ERROR, 0, 0, "Expecting RELAY messages to have valid dst_peer ids.").as_json().to_utf8_buffer()
+								printerr("Error: Received a RELAY message with dst_peer {dst_peer} from peer {peer_id} of an open session \"{session_code}\". Expecting RELAY messages to have valid dst_peer ids.".format({"dst_peer": message.dst_peer, "peer_id": peer_id, "session_code": session_code }))
+								var reply = Message.new(Message.Type.ERROR, 0, peer_id, "Expecting RELAY messages to have valid dst_peer ids.").as_json().to_utf8_buffer()
 								peer.put_packet(reply)
 								continue
 							# Else, the RELAY has a valid destination. Send it.
@@ -228,28 +232,28 @@ func _process(delta) -> void:
 						var message = Message.from_json(peer.get_packet().get_string_from_utf8())
 						# If received message wasn't properly formatted, send back an ERROR.
 						if !message:
-							printerr("Error: Received a malformed message from peer {peer_id} of a sealed session \"{session_code}\". Expecting properly formatted messages." % {"peer_id": peer_id, "session_code": session_code })
-							var reply = Message.new(Message.Type.ERROR, 0, 0, "Expecting properly formatted messages.").as_json().to_utf8_buffer()
+							printerr("Error: Received a malformed message from peer {peer_id} of a sealed session \"{session_code}\". Expecting properly formatted messages.".format({"peer_id": peer_id, "session_code": session_code }))
+							var reply = Message.new(Message.Type.ERROR, 0, peer_id, "Expecting properly formatted messages.").as_json().to_utf8_buffer()
 							peer.put_packet(reply)
 							continue
 						# If received message isn't a READY or a RELAY, send back an ERROR.
 						if (message.type != Message.Type.READY) && (message.type != Message.Type.RELAY):
-							printerr("Error: Received a non-READY/RELAY message from peer {peer_id} of a sealed session \"{session_code}\". Expecting READY or RELAY messages from a peer of an sealed session." % {"peer_id": peer_id, "session_code": session_code })
-							var reply = Message.new(Message.Type.ERROR, 0, 0, "Expecting READY or RELAY messages from a peer of an sealed session.").as_json().to_utf8_buffer()
+							printerr("Error: Received a non-READY/RELAY message from peer {peer_id} of a sealed session \"{session_code}\". Expecting READY or RELAY messages from a peer of an sealed session.".format({"peer_id": peer_id, "session_code": session_code }))
+							var reply = Message.new(Message.Type.ERROR, 0, peer_id, "Expecting READY or RELAY messages from a peer of an sealed session.").as_json().to_utf8_buffer()
 							peer.put_packet(reply)
 							continue
 						# If `src_peer` is trying to impersonate someone else, send back an ERROR.
 						if message.src_peer != peer_id:
-							printerr("Error: Received a message with src_peer {src_peer} from peer {peer_id} of a sealed session \"{session_code}\". Expecting messages to have src_peer matching its peer id." % {"src_peer": message.src_peer, "peer_id": peer_id, "session_code": session_code })
-							var reply = Message.new(Message.Type.ERROR, 0, 0, "Expecting messages to have src_peer matching its peer id.").as_json().to_utf8_buffer()
+							printerr("Error: Received a message with src_peer {src_peer} from peer {peer_id} of a sealed session \"{session_code}\". Expecting messages to have src_peer matching its peer id.".format({"src_peer": message.src_peer, "peer_id": peer_id, "session_code": session_code }))
+							var reply = Message.new(Message.Type.ERROR, 0, peer_id, "Expecting messages to have src_peer matching its peer id.").as_json().to_utf8_buffer()
 							peer.put_packet(reply)
 							continue
 						# Process READYs.
 						if message.type == Message.Type.READY:
 							# If the READY is not for the server, send back an ERROR.
 							if message.dst_peer != 0:
-								printerr("Error: Received a READY message with dst_peer {dst_peer} from peer {peer_id} of a sealed session \"{session_code}\". Expecting READY messages to have dst_peer of 0 (the server)." % {"dst_peer": message.dst_peer, "peer_id": peer_id, "session_code": session_code })
-								var reply = Message.new(Message.Type.ERROR, 0, 0, "Expecting READY messages to have dst_peer of 0 (the server).").as_json().to_utf8_buffer()
+								printerr("Error: Received a READY message with dst_peer {dst_peer} from peer {peer_id} of a sealed session \"{session_code}\". Expecting READY messages to have dst_peer of 0 (the server).".format({"dst_peer": message.dst_peer, "peer_id": peer_id, "session_code": session_code }))
+								var reply = Message.new(Message.Type.ERROR, 0, peer_id, "Expecting READY messages to have dst_peer of 0 (the server).").as_json().to_utf8_buffer()
 								peer.put_packet(reply)
 								continue
 							# Else, the READY is valid. Set the readiness of this peer to `true`.
@@ -259,12 +263,12 @@ func _process(delta) -> void:
 						if message.type == Message.Type.RELAY:
 							# If the RELAY has an invalid dst_peer, send back an ERROR.
 							if !(message.dst_peer in sealed_session):
-								printerr("Error: Received a RELAY message with dst_peer {dst_peer} from peer {peer_id} of a sealed session \"{session_code}\". Expecting RELAY messages to have valid dst_peer ids." % {"dst_peer": message.dst_peer, "peer_id": peer_id, "session_code": session_code })
-								var reply = Message.new(Message.Type.ERROR, 0, 0, "Expecting RELAY messages to have valid dst_peer ids.").as_json().to_utf8_buffer()
+								printerr("Error: Received a RELAY message with dst_peer {dst_peer} from peer {peer_id} of a sealed session \"{session_code}\". Expecting RELAY messages to have valid dst_peer ids.".format({"dst_peer": message.dst_peer, "peer_id": peer_id, "session_code": session_code }))
+								var reply = Message.new(Message.Type.ERROR, 0, peer_id, "Expecting RELAY messages to have valid dst_peer ids.").as_json().to_utf8_buffer()
 								peer.put_packet(reply)
 								continue
 							# Else, the RELAY has a valid destination. Send it.
-							var dst_peer: WebSocketPeer = sealed_session[message.dst_peer]
+							var dst_peer: WebSocketPeer = sealed_session[message.dst_peer][0]
 							var relay = message.as_json().to_utf8_buffer()
 							dst_peer.put_packet(relay)
 							continue
@@ -352,9 +356,9 @@ static var alphanumerals = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ
 
 static func random_string() -> String:
 	var random_string: String = ""
-	var len = len(alphanumerals)
+	var length = len(alphanumerals)
 	for i in range(16):
-		random_string += alphanumerals[randi() % len]
+		random_string += alphanumerals[randi() % length]
 	return random_string
 	
 

@@ -1,0 +1,81 @@
+[gd_scene load_steps=4 format=3 uid="uid://lq6iw3gmq3ju"]
+
+[ext_resource type="Script" path="res://tests/TestClientUI.gd" id="1_iylmr"]
+[ext_resource type="Script" path="res://tests/SessionServerUI.gd" id="2_7qv0e"]
+[ext_resource type="Script" path="res://networking/SessionServer.gd" id="3_a1rp4"]
+
+[node name="SessionServerTestGame" type="Node"]
+
+[node name="MarginContainer" type="MarginContainer" parent="."]
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_constants/margin_left = 10
+theme_override_constants/margin_top = 10
+theme_override_constants/margin_right = 10
+theme_override_constants/margin_bottom = 10
+
+[node name="HBoxContainer" type="HBoxContainer" parent="MarginContainer"]
+layout_mode = 2
+theme_override_constants/separation = 10
+
+[node name="TestClientUI" type="VBoxContainer" parent="MarginContainer/HBoxContainer"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_constants/separation = 10
+script = ExtResource("1_iylmr")
+
+[node name="StartClient" type="Button" parent="MarginContainer/HBoxContainer/TestClientUI"]
+layout_mode = 2
+text = "Start Client"
+
+[node name="StopClient" type="Button" parent="MarginContainer/HBoxContainer/TestClientUI"]
+layout_mode = 2
+disabled = true
+text = "Stop Client"
+
+[node name="Message" type="TextEdit" parent="MarginContainer/HBoxContainer/TestClientUI"]
+layout_mode = 2
+size_flags_vertical = 3
+text = "{
+	\"type\": \"JOIN\",
+	\"src_peer\": 0,
+	\"dst_peer\": 0,
+	\"body\": \"\"
+}"
+
+[node name="Send" type="Button" parent="MarginContainer/HBoxContainer/TestClientUI"]
+layout_mode = 2
+text = "Send Message"
+
+[node name="Output" type="TextEdit" parent="MarginContainer/HBoxContainer/TestClientUI"]
+layout_mode = 2
+size_flags_vertical = 3
+size_flags_stretch_ratio = 2.0
+editable = false
+
+[node name="SessionServerUI" type="VBoxContainer" parent="MarginContainer/HBoxContainer"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_constants/separation = 10
+script = ExtResource("2_7qv0e")
+
+[node name="StartServer" type="Button" parent="MarginContainer/HBoxContainer/SessionServerUI"]
+layout_mode = 2
+text = "Start Server"
+
+[node name="Output" type="TextEdit" parent="MarginContainer/HBoxContainer/SessionServerUI"]
+layout_mode = 2
+size_flags_vertical = 3
+size_flags_stretch_ratio = 4.0
+editable = false
+
+[node name="SessionServer" type="Node" parent="MarginContainer/HBoxContainer/SessionServerUI"]
+script = ExtResource("3_a1rp4")
+
+[connection signal="pressed" from="MarginContainer/HBoxContainer/TestClientUI/StartClient" to="MarginContainer/HBoxContainer/TestClientUI" method="_on_start_client_pressed"]
+[connection signal="pressed" from="MarginContainer/HBoxContainer/TestClientUI/StopClient" to="MarginContainer/HBoxContainer/TestClientUI" method="_on_stop_client_pressed"]
+[connection signal="pressed" from="MarginContainer/HBoxContainer/TestClientUI/Send" to="MarginContainer/HBoxContainer/TestClientUI" method="_on_send_pressed"]
+[connection signal="pressed" from="MarginContainer/HBoxContainer/SessionServerUI/StartServer" to="MarginContainer/HBoxContainer/SessionServerUI" method="_on_start_server_pressed"]
