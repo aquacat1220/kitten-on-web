@@ -10,7 +10,7 @@ var open_sessions: Dictionary = {}
 # `sealed_sessions`is a dictionary from session code (String) to a a dictionary from peer id (int) to a length-2 array of WebSocketPeer and its readiness.
 var sealed_sessions: Dictionary = {}
 
-func listen(listen_port: int) -> Error:
+func start(listen_port: int) -> Error:
 	return listen_server.listen(listen_port)
 
 func is_listening() -> bool:
