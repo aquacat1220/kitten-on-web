@@ -60,8 +60,12 @@ func _process(delta) -> void:
 						var reply = Message.new(Message.Type.ERROR, 0, 0, "Expecting properly formatted messages.").as_json().to_utf8_buffer()
 						orphan.put_packet(reply)
 						continue
+					# If received message is a ERROR, printerr.
+					if message.type == Message.Type.ERROR:
+						printerr("Error: Received a ERROR message from an orphan. Error body was: {body}".format({ "body": message.body }))
+						continue
 					# If received message isn't a JOIN with 0 0 peer ids, send back an ERROR.
-					if (!message) || (message.type != Message.Type.JOIN) || (message.src_peer != 0) || (message.dst_peer != 0):
+					if (message.type != Message.Type.JOIN) || (message.src_peer != 0) || (message.dst_peer != 0):
 						printerr("Error: Received a non-JOIN message from an orphan. Expecting JOIN messages from orphans.")
 						var reply = Message.new(Message.Type.ERROR, 0, 0, "Expecting JOIN messages from orphans.").as_json().to_utf8_buffer()
 						orphan.put_packet(reply)
@@ -147,6 +151,10 @@ func _process(delta) -> void:
 							printerr("Error: Received a malformed message from peer {peer_id} of an open session \"{session_code}\". Expecting properly formatted messages.".format({"peer_id": peer_id, "session_code": session_code }))
 							var reply = Message.new(Message.Type.ERROR, 0, peer_id, "Expecting properly formatted messages.").as_json().to_utf8_buffer()
 							peer.put_packet(reply)
+							continue
+						# If received message is a ERROR, printerr.
+						if message.type == Message.Type.ERROR:
+							printerr("Error: Received a ERROR message from peer {peer_id} of an open session \"{session_code}\". Error body was: {body}".format({ "peer_id": peer_id, "session_code": session_code, "body": message.body }))
 							continue
 						# If received message isn't a SEAL or a RELAY, send back an ERROR.
 						if (message.type != Message.Type.SEAL) && (message.type != Message.Type.RELAY):
@@ -235,6 +243,10 @@ func _process(delta) -> void:
 							printerr("Error: Received a malformed message from peer {peer_id} of a sealed session \"{session_code}\". Expecting properly formatted messages.".format({"peer_id": peer_id, "session_code": session_code }))
 							var reply = Message.new(Message.Type.ERROR, 0, peer_id, "Expecting properly formatted messages.").as_json().to_utf8_buffer()
 							peer.put_packet(reply)
+							continue
+						# If received message is a ERROR, printerr.
+						if message.type == Message.Type.ERROR:
+							printerr("Error: Received a ERROR message from peer {peer_id} of a sealed session \"{session_code}\". Error body was: {body}".format({ "peer_id": peer_id, "session_code": session_code, "body": message.body }))
 							continue
 						# If received message isn't a READY or a RELAY, send back an ERROR.
 						if (message.type != Message.Type.READY) && (message.type != Message.Type.RELAY):
