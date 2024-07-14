@@ -3,9 +3,9 @@ extends RefCounted
 
 enum Type {
 	ERROR, # `body`: String | Error description.
-	JOIN, # `body`: String | session code.
-	PEER_CONNECTED, # `body`: int | connected peer.
-	PEER_DISCONNECTED, # `body`: int | disconnected peer.
+	JOIN, # `body`: String | Session code.
+	PEER_CONNECTED, # `body`: int | Connected peer.
+	PEER_DISCONNECTED, # `body`: int | Disconnected peer.
 	SEAL, # `body`: null
 	RELAY, # `body`: String | Arbitrary string.
 	READY # `body`: null

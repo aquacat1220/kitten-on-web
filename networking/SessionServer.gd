@@ -1,41 +1,41 @@
 class_name SessionServer
 extends Node
 
-# `listen_server` is the TCP server listening for new websocket connections.
-var listen_server: TCPServer = TCPServer.new()
-# `orphans` is an array of WebSocketPeers that didn't `join` a session yet.
-var orphans: Array[WebSocketPeer] = []
-# `open_sessions` is a dictionary from session code (String) to a dictionary from peer id (int) to WebSocketPeers of that session.
-var open_sessions: Dictionary = {}
-# `sealed_sessions`is a dictionary from session code (String) to a a dictionary from peer id (int) to a length-2 array of WebSocketPeer and its readiness.
-var sealed_sessions: Dictionary = {}
+# `_listen_server` is the TCP server listening for new websocket connections.
+var _listen_server: TCPServer = TCPServer.new()
+# `_orphans` is an array of WebSocketPeers that didn't `join` a session yet.
+var _orphans: Array[WebSocketPeer] = []
+# `_open_sessions` is a dictionary from session code (String) to a dictionary from peer id (int) to WebSocketPeers of that session.
+var _open_sessions: Dictionary = {}
+# `_sealed_sessions`is a dictionary from session code (String) to a a dictionary from peer id (int) to a length-2 array of WebSocketPeer and its readiness.
+var _sealed_sessions: Dictionary = {}
 
 func start(listen_port: int) -> Error:
-	return listen_server.listen(listen_port)
+	return _listen_server.listen(listen_port)
 
 func is_listening() -> bool:
-	return listen_server.is_listening()
+	return _listen_server.is_listening()
 
 # Called every frame. 'delta' is the elapsed time since the previous frame.
 func _process(delta) -> void:
 	# If `listen_server` is not listening, the server isn't started yet, and `listen()` should be called first.
-	if !listen_server.is_listening():
+	if !_listen_server.is_listening():
 		return
 		
 	# Else, we can start the server.
 	
 	# First, check `listen_server` for connection attempts.
-	while listen_server.is_connection_available():
+	while _listen_server.is_connection_available():
 		var orphan = WebSocketPeer.new()
 		# If `accept_stream()` fails for some reason, ignore this stream. The client will retry if it is desperate.
-		if orphan.accept_stream(listen_server.take_connection()):
+		if orphan.accept_stream(_listen_server.take_connection()):
 			printerr("Error: Failed to accept a stream.")
 			continue
-		orphans.append(orphan)
+		_orphans.append(orphan)
 	
 	# Removing elements while iterating over a container is unsound!
 	# Deepcopy `orphans` into `old_orphans`, and iterate over it instead.
-	var old_orphans: Array[WebSocketPeer] = orphans.duplicate(true)
+	var old_orphans: Array[WebSocketPeer] = _orphans.duplicate(true)
 	# Poll orphans to make sure they are connected, and possibly process `JOIN`s.
 	for orphan in old_orphans:
 		orphan.poll()
@@ -48,7 +48,7 @@ func _process(delta) -> void:
 				continue
 			# Closed socket. Remove from `orphans`.
 			WebSocketPeer.State.STATE_CLOSED:
-				orphans.erase(orphan)
+				_orphans.erase(orphan)
 				continue
 			# Open and healthy socket. Read packets from it. (Expecting JOINs.)
 			WebSocketPeer.State.STATE_OPEN:
@@ -75,12 +75,12 @@ func _process(delta) -> void:
 					# `body` of a JOIN denotes the session code.
 					# Session code of "" denotes a HOST. Create a new open session and move this orphan to it.
 					if message.body == "":
-						var session_code = SessionServer.random_string()
-						while (session_code in open_sessions) || (session_code in sealed_sessions):
-							session_code = SessionServer.random_string()
+						var session_code = SessionServer._random_string()
+						while (session_code in _open_sessions) || (session_code in _sealed_sessions):
+							session_code = SessionServer._random_string()
 						var open_session = { 1: orphan }
-						orphans.erase(orphan)
-						open_sessions[session_code] = open_session
+						_orphans.erase(orphan)
+						_open_sessions[session_code] = open_session
 						var reply = Message.new(Message.Type.JOIN, 0, 1, session_code).as_json().to_utf8_buffer()
 						orphan.put_packet(reply)
 						break
@@ -88,32 +88,32 @@ func _process(delta) -> void:
 					else:
 						var session_code = message.body
 						# If no matching session is found, reply with an ERROR.
-						if !(session_code in open_sessions):
+						if !(session_code in _open_sessions):
 							printerr("Error: Received a JOIN to a nonexistant session from an orphan. Expecting JOIN message bodies to contain codes for existing sessions, or an empty string. \"{session_code}\" was neither of two.")
 							var reply = Message.new(Message.Type.ERROR, 0, 0, "Expecting JOIN message bodies to contain codes for existing sessions, or an empty string. \"{session_code}\" was neither of two.".format({"session_code": session_code})).as_json().to_utf8_buffer()
 							orphan.put_packet(reply)
 							continue
 						# Else, we have a matching session. Move this orphan to it, and notify all session members.
-						var open_session = open_sessions[session_code]
+						var open_session = _open_sessions[session_code]
 						var peer_id = randi()
 						while (peer_id in open_session) || (peer_id == 0):
 							peer_id = randi()
-						orphans.erase(orphan)
+						_orphans.erase(orphan)
 						open_session[peer_id] = orphan
 						var reply = Message.new(Message.Type.JOIN, 0, peer_id, session_code).as_json().to_utf8_buffer()
 						orphan.put_packet(reply)
-						notify_peer_connected(open_session, peer_id)
+						_notify_peer_connected(open_session, peer_id)
 						break
 	
 	# Now poll all peers logically part of an open session.
-	for session_code in open_sessions.keys():
+	for session_code in _open_sessions.keys():
 		# Previous iterations may removed the session. Check if the session is still there.
-		if !(session_code in open_sessions):
+		if !(session_code in _open_sessions):
 			continue
-		var open_session = open_sessions[session_code]
+		var open_session = _open_sessions[session_code]
 		for peer_id in open_session.keys():
 			# Previous iterations may removed the session, or the peer. Check if this peer is still part of an open session.
-			if !(session_code in open_sessions):
+			if !(session_code in _open_sessions):
 				# The session is no longer open. Break the loop.
 				break
 			if !(peer_id in open_session):
@@ -132,15 +132,15 @@ func _process(delta) -> void:
 					# `peer` isn't a host. Notify its disconnection, and move it to `orphans`.
 					if peer_id != 1:
 						open_session.erase(peer_id)
-						orphans.append(peer)
-						notify_peer_disconnected(open_session, peer_id)
+						_orphans.append(peer)
+						_notify_peer_disconnected(open_session, peer_id)
 						continue
 					# Else, `peer` is the host. Close all peers, and move them to `orphans`.
-					open_sessions.erase(session_code)
+					_open_sessions.erase(session_code)
 					for other_peer_id in open_session:
 						var other_peer = open_session[other_peer_id]
 						other_peer.close(1000, "Host disconnected.")
-						orphans.append(other_peer)
+						_orphans.append(other_peer)
 					continue
 				# Open socket. Read packets from it.
 				WebSocketPeer.State.STATE_OPEN:
@@ -177,10 +177,10 @@ func _process(delta) -> void:
 								peer.put_packet(reply)
 								continue
 							# Else, the SEAL *is* from the host. Move the session to `sealed_sessions`, and notify seal.
-							open_sessions.erase(session_code)
-							var sealed_session = SessionServer.into_sealed_session(open_session)
-							sealed_sessions[session_code] = sealed_session
-							notify_seal(sealed_session)
+							_open_sessions.erase(session_code)
+							var sealed_session = SessionServer._into_sealed_session(open_session)
+							_sealed_sessions[session_code] = sealed_session
+							_notify_seal(sealed_session)
 							break
 						# Process RELAYs.
 						if message.type == Message.Type.RELAY:
@@ -197,14 +197,14 @@ func _process(delta) -> void:
 							continue
 	
 	# Finally, poll all peers logically part of a sealed session.
-	for session_code in sealed_sessions.keys():
+	for session_code in _sealed_sessions.keys():
 		# Previous iterations may removed the session. Check if the session is still there.
-		if !(session_code in sealed_sessions):
+		if !(session_code in _sealed_sessions):
 			continue
-		var sealed_session = sealed_sessions[session_code]
+		var sealed_session = _sealed_sessions[session_code]
 		for peer_id in sealed_session.keys():
 			# Previous iterations may removed the session, or the peer. Check if this peer is still part of a sealed session.
-			if !(session_code in sealed_sessions):
+			if !(session_code in _sealed_sessions):
 				# The session is no longer sealed. Break the loop.
 				break
 			if !(peer_id in sealed_session):
@@ -224,15 +224,15 @@ func _process(delta) -> void:
 					# If `peer` isn't a host, notify its disconnection, and move it to `orphans`.
 					if peer_id != 1:
 						sealed_session.erase(peer_id)
-						orphans.append(peer)
-						notify_peer_disconnected(sealed_session, peer_id)
+						_orphans.append(peer)
+						_notify_peer_disconnected(sealed_session, peer_id)
 						continue
 					# Else, `peer` is the host. Close all peers, and move them to `orphans`.
-					sealed_sessions.erase(session_code)
+					_sealed_sessions.erase(session_code)
 					for other_peer_id in sealed_session:
 						var other_peer = sealed_session[other_peer_id][0]
 						other_peer.close(1000, "Host disconnected.")
-						orphans.append(other_peer)
+						_orphans.append(other_peer)
 					continue
 				# Open socket. Read packets from it.
 				WebSocketPeer.State.STATE_OPEN:
@@ -286,7 +286,7 @@ func _process(delta) -> void:
 							continue
 		# Now, lets check if we should notify READY for this sealed session.
 		# First, check if we still have the session. (Though we don't have any code that may remove this session...)
-		if !(session_code in sealed_sessions):
+		if !(session_code in _sealed_sessions):
 			continue
 		# Then, check if all peers of this session are STATE_OPEN, and are ready.
 		var can_proceed: bool = true
@@ -301,17 +301,17 @@ func _process(delta) -> void:
 		if !can_proceed:
 			continue
 		# After all these checks, we can call `notify_ready()`. Still, if a peer disconnects between the check and the call, the call might fail. But we ignore this case.
-		notify_ready(sealed_session)
+		_notify_ready(sealed_session)
 		# Finally, we can move all peers of `sealed_session` to orphans, and wait them to close.
-		sealed_sessions.erase(session_code)
+		_sealed_sessions.erase(session_code)
 		for peer_id in sealed_session:
 			var peer = sealed_session[peer_id][0]
-			orphans.append(peer)
+			_orphans.append(peer)
 	
 	
 # Iterate over all peers of `session`, and send them a PEER_CONNECTED with the `connected_peer_id`.
 # The peer with `connected_peer_id` does not get a PEER_CONNCETED of itself, but instead gets PEER_CONNECTED of all other peers.
-func notify_peer_connected(session: Dictionary, connected_peer_id: int) -> void:
+func _notify_peer_connected(session: Dictionary, connected_peer_id: int) -> void:
 	for peer_id in session:
 		# `session` might be open or sealed, and sealed sessions hold a length-2 array where the first element is the peer.
 		var peer = session[peer_id]
@@ -327,7 +327,7 @@ func notify_peer_connected(session: Dictionary, connected_peer_id: int) -> void:
 				var peer_conn = Message.new(Message.Type.PEER_CONNECTED, 0, peer_id, other_peer_id).as_json().to_utf8_buffer()
 				peer.put_packet(peer_conn)
 
-func notify_peer_disconnected(session: Dictionary, disconnected_peer_id: int) -> void:
+func _notify_peer_disconnected(session: Dictionary, disconnected_peer_id: int) -> void:
 	for peer_id in session:
 		# `session` might be open or sealed, and sealed sessions hold a length-2 array where the first element is the peer.
 		var peer = session[peer_id]
@@ -340,14 +340,14 @@ func notify_peer_disconnected(session: Dictionary, disconnected_peer_id: int) ->
 			continue
 		# No need to send anything to the disconnected peer; it isn't even possible anyway.
 
-func notify_seal(sealed_session: Dictionary) -> void:
+func _notify_seal(sealed_session: Dictionary) -> void:
 	for peer_id in sealed_session:
 		var peer = sealed_session[peer_id][0]
 		if peer.get_ready_state() == WebSocketPeer.State.STATE_OPEN:
 			var sealed = Message.new(Message.Type.SEAL, 0, peer_id, null).as_json().to_utf8_buffer()
 			peer.put_packet(sealed)
 
-func notify_ready(sealed_session: Dictionary) -> void:
+func _notify_ready(sealed_session: Dictionary) -> void:
 	for peer_id in sealed_session:
 		var peer = sealed_session[peer_id][0]
 		if peer.get_ready_state() == WebSocketPeer.State.STATE_OPEN:
@@ -357,20 +357,20 @@ func notify_ready(sealed_session: Dictionary) -> void:
 			printerr("Error: `sealed_session` has a non-OPEN peer.")
 		
 
-static func into_sealed_session(open_session: Dictionary) -> Dictionary:
+static func _into_sealed_session(open_session: Dictionary) -> Dictionary:
 	var sealed_session: Dictionary = {}
 	for peer_id in open_session:
 		sealed_session[peer_id] = [open_session[peer_id], false]
 	return sealed_session
 
 	
-static var alphanumerals = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
+static var _alphanumerals = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
 
-static func random_string() -> String:
+static func _random_string() -> String:
 	var random_string: String = ""
-	var length = len(alphanumerals)
+	var length = len(_alphanumerals)
 	for i in range(16):
-		random_string += alphanumerals[randi() % length]
+		random_string += _alphanumerals[randi() % length]
 	return random_string
 	
 
