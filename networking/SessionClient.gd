@@ -19,14 +19,14 @@ var _state: State = State.DISCONNECTED
 # Reset to empty string on `_cleanup()`. Thus, if `_state` is DISCONNECTED but `_session_code` is not empty, we must haev a ready session.
 var _session_code: String = ""
 
-signal _on_disconnected
-signal _on_connecting
-signal _on_orphan
-signal _on_pending_join
-signal _on_open_session
-signal _on_sealed_session
-signal _on_pending_ready
-signal _on_closing
+signal on_disconnected
+signal on_connecting
+signal on_orphan
+signal on_pending_join
+signal on_open_session
+signal on_sealed_session
+signal on_pending_ready
+signal on_closing
 
 func connect_to_url(url: String) -> bool:
 	# Await on `leave()` to guarantee a DISCONNECTED start.
@@ -41,9 +41,9 @@ func connect_to_url(url: String) -> bool:
 		return false
 	
 	_state = State.CONNECTING
-	_on_connecting.emit()
+	on_connecting.emit()
 	# Now wait for the connection to succeed, or fail.
-	await Join.new([_on_disconnected, _on_orphan]).any()
+	await Join.new([on_disconnected, on_orphan]).any()
 	if _state == State.DISCONNECTED:
 		return false
 	return true
@@ -57,12 +57,17 @@ func host() -> String:
 	_ws.put_packet(host)
 	
 	_state = State.PENDING_JOIN
-	_on_pending_join.emit()
+	on_pending_join.emit()
 	# Now wait for JOIN to succeed, or fail.
-	await Join.new([_on_orphan, _on_open_session]).any()
+	await Join.new([on_orphan, on_open_session, on_disconnected]).any()
 	if _state == State.ORPHAN:
 		return ""
-	return _session_code
+	if _state == State.DISCONNECTED:
+		return ""
+	if _state == State.OPEN_SESSION:
+		return _session_code
+	push_error("Error: Code shouldn't reach here.")
+	return ""
 	
 func join(session_code: String) -> bool:
 	if _state != State.ORPHAN:
@@ -73,12 +78,17 @@ func join(session_code: String) -> bool:
 	_ws.put_packet(join)
 	
 	_state = State.PENDING_JOIN
-	_on_pending_join.emit()
+	on_pending_join.emit()
 	# Now wait for JOIN to succeed, or fail.
-	await Join.new([_on_orphan, _on_open_session]).any()
+	await Join.new([on_orphan, on_open_session, on_disconnected]).any()
 	if _state == State.ORPHAN:
 		return false
-	return true
+	if _state == State.DISCONNECTED:
+		return false
+	if _state == State.OPEN_SESSION:
+		return true
+	push_error("Error: Code shouldn't reach here.")
+	return false
 	
 func seal() -> bool:
 	if _state != State.OPEN_SESSION:
@@ -93,16 +103,18 @@ func seal() -> bool:
 	var seal = Message.new(Message.Type.SEAL, multiplayer.get_unique_id(), 0, null).as_json().to_utf8_buffer()
 	_ws.put_packet(seal)
 	
-	# Now wait for _on_sealed_session.
-	await _on_sealed_session
+	# Now wait.
+	await Join.new([on_sealed_session, on_disconnected]).any()
 	if _state == State.SEALED_SESSION:
 		return true
+	if _state == State.DISCONNECTED:
+		return false
 	push_error("Error: Code shouldn't reach here.")
 	return false
 	
-func wait_until_ready() -> bool:
+func ready() -> bool:
 	while _state != State.DISCONNECTED:
-		await _on_disconnected
+		await on_disconnected
 	# If `_session_code` is a non-empty string, we must've followed the intended path (PENDING_READY -> CLOSING -> DISCONNECTED).
 	if _session_code != "":
 		return true
@@ -114,10 +126,10 @@ func leave() -> void:
 	_ws.close(1000, "Client requested to leave.")
 	_cleanup()
 	_state = State.CLOSING
-	_on_closing.emit()
+	on_closing.emit()
 	# Then wait until everything is reset to DISCONNECTED.
 	while _state != State.DISCONNECTED:
-		await _on_disconnected
+		await on_disconnected
 	return
 
 func _process(delta):
@@ -143,21 +155,21 @@ func _process(delta):
 		_state = new_state
 		match _state:
 			State.DISCONNECTED:
-				_on_disconnected.emit()
+				on_disconnected.emit()
 			State.CONNECTING:
-				_on_connecting.emit()
+				on_connecting.emit()
 			State.ORPHAN:
-				_on_orphan.emit()
+				on_orphan.emit()
 			State.PENDING_JOIN:
-				_on_pending_join.emit()
+				on_pending_join.emit()
 			State.OPEN_SESSION:
-				_on_open_session.emit()
+				on_open_session.emit()
 			State.SEALED_SESSION:
-				_on_sealed_session.emit()
+				on_sealed_session.emit()
 			State.PENDING_READY:
-				_on_pending_ready.emit()
+				on_pending_ready.emit()
 			State.CLOSING:
-				_on_closing.emit()
+				on_closing.emit()
 	
 
 func _process_disconnected() -> State:

@@ -1,0 +1,29 @@
+[gd_scene load_steps=4 format=3 uid="uid://ca1cnjhwtt7dw"]
+
+[ext_resource type="Script" path="res://tests/simple_chat/SimpleChatServer.gd" id="1_uoca2"]
+[ext_resource type="Script" path="res://networking/SessionServer.gd" id="2_nv1dc"]
+[ext_resource type="Theme" uid="uid://b3fw0x4ghatie" path="res://MyTheme.tres" id="3_pkrp2"]
+
+[node name="SimpleChatServer" type="Node"]
+script = ExtResource("1_uoca2")
+
+[node name="SessionServer" type="Node" parent="."]
+script = ExtResource("2_nv1dc")
+
+[node name="Background" type="PanelContainer" parent="."]
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+theme = ExtResource("3_pkrp2")
+
+[node name="MarginContainer" type="MarginContainer" parent="Background"]
+layout_mode = 2
+theme = ExtResource("3_pkrp2")
+
+[node name="StartServer" type="Button" parent="Background/MarginContainer"]
+layout_mode = 2
+text = "Start server"
+
+[connection signal="pressed" from="Background/MarginContainer/StartServer" to="." method="_on_start_server_pressed"]

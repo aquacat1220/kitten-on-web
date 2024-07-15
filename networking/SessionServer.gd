@@ -92,7 +92,7 @@ func _process(delta) -> void:
 						# If no matching session is found, reply with an ERROR.
 						if !(session_code in _open_sessions):
 							push_error("Error: Received a JOIN to a nonexistant session from an orphan. Expecting JOIN message bodies to contain codes for existing sessions, or an empty string. \"{session_code}\" was neither of two.")
-							var reply = Message.new(Message.Type.ERROR, 0, 0, "Expecting JOIN message bodies to contain codes for existing sessions, or an empty string. \"{session_code}\" was neither of two.".format({"session_code": session_code})).as_json().to_utf8_buffer()
+							var reply = Message.new(Message.Type.JOIN, 0, 0, "").as_json().to_utf8_buffer()
 							orphan.put_packet(reply)
 							continue
 						# Else, we have a matching session. Move this orphan to it, and notify all session members.

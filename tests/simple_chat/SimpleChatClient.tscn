@@ -1,0 +1,143 @@
+[gd_scene load_steps=5 format=3 uid="uid://itkr8rthvkxx"]
+
+[ext_resource type="Theme" uid="uid://b3fw0x4ghatie" path="res://MyTheme.tres" id="1_syhql"]
+[ext_resource type="Script" path="res://tests/simple_chat/SimpleChatClient.gd" id="2_0a1cm"]
+[ext_resource type="Script" path="res://networking/SessionClient.gd" id="3_anni0"]
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_blno0"]
+bg_color = Color(0.23446, 0.234442, 0.2654, 1)
+
+[node name="SimpleChatClient" type="Node"]
+script = ExtResource("2_0a1cm")
+
+[node name="Background" type="PanelContainer" parent="."]
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+theme = ExtResource("1_syhql")
+
+[node name="MarginContainer" type="MarginContainer" parent="Background"]
+layout_mode = 2
+theme = ExtResource("1_syhql")
+
+[node name="App" type="HBoxContainer" parent="Background/MarginContainer"]
+layout_mode = 2
+theme = ExtResource("1_syhql")
+
+[node name="SessionClientUI" type="VBoxContainer" parent="Background/MarginContainer/App"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme = ExtResource("1_syhql")
+
+[node name="StartAsServer" type="Button" parent="Background/MarginContainer/App/SessionClientUI"]
+layout_mode = 2
+text = "Start as server"
+
+[node name="URLContainer" type="HBoxContainer" parent="Background/MarginContainer/App/SessionClientUI"]
+layout_mode = 2
+theme = ExtResource("1_syhql")
+
+[node name="Label" type="Label" parent="Background/MarginContainer/App/SessionClientUI/URLContainer"]
+layout_mode = 2
+theme = ExtResource("1_syhql")
+text = "URL:"
+
+[node name="URL" type="LineEdit" parent="Background/MarginContainer/App/SessionClientUI/URLContainer"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme = ExtResource("1_syhql")
+text = "ws://localhost:12345"
+
+[node name="SessionCodeContainer" type="HBoxContainer" parent="Background/MarginContainer/App/SessionClientUI"]
+layout_mode = 2
+theme = ExtResource("1_syhql")
+
+[node name="Label" type="Label" parent="Background/MarginContainer/App/SessionClientUI/SessionCodeContainer"]
+layout_mode = 2
+text = "Session Code:"
+
+[node name="SessionCode" type="LineEdit" parent="Background/MarginContainer/App/SessionClientUI/SessionCodeContainer"]
+layout_mode = 2
+size_flags_horizontal = 3
+
+[node name="HostJoinContainer" type="HBoxContainer" parent="Background/MarginContainer/App/SessionClientUI"]
+layout_mode = 2
+theme = ExtResource("1_syhql")
+
+[node name="Host" type="Button" parent="Background/MarginContainer/App/SessionClientUI/HostJoinContainer"]
+layout_mode = 2
+size_flags_horizontal = 3
+text = "Host"
+
+[node name="Join" type="Button" parent="Background/MarginContainer/App/SessionClientUI/HostJoinContainer"]
+layout_mode = 2
+size_flags_horizontal = 3
+text = "Join"
+
+[node name="Seal" type="Button" parent="Background/MarginContainer/App/SessionClientUI"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme = ExtResource("1_syhql")
+disabled = true
+text = "Seal"
+
+[node name="Leave" type="Button" parent="Background/MarginContainer/App/SessionClientUI"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme = ExtResource("1_syhql")
+disabled = true
+text = "Leave"
+
+[node name="Log" type="RichTextLabel" parent="Background/MarginContainer/App/SessionClientUI"]
+layout_mode = 2
+size_flags_vertical = 3
+theme = ExtResource("1_syhql")
+
+[node name="SessionClient" type="Node" parent="Background/MarginContainer/App/SessionClientUI"]
+script = ExtResource("3_anni0")
+
+[node name="ChatUI" type="VBoxContainer" parent="Background/MarginContainer/App"]
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_stretch_ratio = 3.0
+theme = ExtResource("1_syhql")
+
+[node name="PanelContainer" type="PanelContainer" parent="Background/MarginContainer/App/ChatUI"]
+layout_mode = 2
+size_flags_vertical = 3
+theme = ExtResource("1_syhql")
+theme_override_styles/panel = SubResource("StyleBoxFlat_blno0")
+
+[node name="Chat" type="RichTextLabel" parent="Background/MarginContainer/App/ChatUI/PanelContainer"]
+layout_mode = 2
+focus_mode = 2
+theme = ExtResource("1_syhql")
+bbcode_enabled = true
+scroll_following = true
+selection_enabled = true
+
+[node name="SendContainer" type="HBoxContainer" parent="Background/MarginContainer/App/ChatUI"]
+layout_mode = 2
+theme = ExtResource("1_syhql")
+
+[node name="Input" type="LineEdit" parent="Background/MarginContainer/App/ChatUI/SendContainer"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme = ExtResource("1_syhql")
+editable = false
+
+[node name="Send" type="Button" parent="Background/MarginContainer/App/ChatUI/SendContainer"]
+layout_mode = 2
+theme = ExtResource("1_syhql")
+disabled = true
+text = "Send"
+
+[connection signal="pressed" from="Background/MarginContainer/App/SessionClientUI/StartAsServer" to="." method="_on_start_as_server_pressed"]
+[connection signal="pressed" from="Background/MarginContainer/App/SessionClientUI/HostJoinContainer/Host" to="." method="_on_host_pressed"]
+[connection signal="pressed" from="Background/MarginContainer/App/SessionClientUI/HostJoinContainer/Join" to="." method="_on_join_pressed"]
+[connection signal="pressed" from="Background/MarginContainer/App/SessionClientUI/Seal" to="." method="_on_seal_pressed"]
+[connection signal="pressed" from="Background/MarginContainer/App/SessionClientUI/Leave" to="." method="_on_leave_pressed"]
+[connection signal="on_disconnected" from="Background/MarginContainer/App/SessionClientUI/SessionClient" to="." method="_handle_disconnect"]
+[connection signal="pressed" from="Background/MarginContainer/App/ChatUI/SendContainer/Send" to="." method="_on_send_pressed"]
