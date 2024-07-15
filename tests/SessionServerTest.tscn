@@ -4,7 +4,7 @@
 [ext_resource type="Script" path="res://tests/SessionServerUI.gd" id="2_7qv0e"]
 [ext_resource type="Script" path="res://networking/SessionServer.gd" id="3_a1rp4"]
 
-[node name="SessionServerTestGame" type="Node"]
+[node name="SessionServerTest" type="Node"]
 
 [node name="MarginContainer" type="MarginContainer" parent="."]
 anchors_preset = 15
