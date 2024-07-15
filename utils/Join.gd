@@ -20,7 +20,7 @@ func _init(signals: Array[Signal]):
 	_signals = signals
 	_left_signals = len(signals)
 	for _signal in _signals:
-		_signal.connect(_on_signal, Object.ConnectFlags.CONNECT_ONE_SHOT)
+		_signal.connect(_on_signal, Object.ConnectFlags.CONNECT_ONE_SHOT | Object.ConnectFlags.CONNECT_REFERENCE_COUNTED )
 
 func _on_signal():
 	_left_signals -= 1

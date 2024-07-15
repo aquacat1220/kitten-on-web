@@ -41,7 +41,7 @@ static func from_json(json_string: String) -> Message:
 	if !("type" in message) || (typeof(message["type"]) != TYPE_STRING):
 		return null
 	var type = string_to_type(message["type"])
-	if !type:
+	if type == null:
 		return null
 		
 	if !("src_peer" in message) || (typeof(message["src_peer"]) != TYPE_FLOAT):

@@ -29,7 +29,7 @@ func _process(delta) -> void:
 		var orphan = WebSocketPeer.new()
 		# If `accept_stream()` fails for some reason, ignore this stream. The client will retry if it is desperate.
 		if orphan.accept_stream(_listen_server.take_connection()):
-			printerr("Error: Failed to accept a stream.")
+			push_error("Error: Failed to accept a stream.")
 			continue
 		_orphans.append(orphan)
 	
@@ -53,20 +53,22 @@ func _process(delta) -> void:
 			# Open and healthy socket. Read packets from it. (Expecting JOINs.)
 			WebSocketPeer.State.STATE_OPEN:
 				while orphan.get_available_packet_count() != 0:
-					var message = Message.from_json(orphan.get_packet().get_string_from_utf8())
+					var json_string = orphan.get_packet().get_string_from_utf8()
+					debug_print(json_string)
+					var message = Message.from_json(json_string)
 					# If received message wasn't properly formatted, send back an ERROR.
 					if !message:
-						printerr("Error: Received a malformed message from an orphan. Expecting properly formatted messages.")
+						push_error("Error: Received a malformed message from an orphan. Expecting properly formatted messages.")
 						var reply = Message.new(Message.Type.ERROR, 0, 0, "Expecting properly formatted messages.").as_json().to_utf8_buffer()
 						orphan.put_packet(reply)
 						continue
-					# If received message is a ERROR, printerr.
+					# If received message is a ERROR, push_error.
 					if message.type == Message.Type.ERROR:
-						printerr("Error: Received a ERROR message from an orphan. Error body was: {body}".format({ "body": message.body }))
+						push_error("Error: Received a ERROR message from an orphan. Error body was: {body}".format({ "body": message.body }))
 						continue
 					# If received message isn't a JOIN with 0 0 peer ids, send back an ERROR.
 					if (message.type != Message.Type.JOIN) || (message.src_peer != 0) || (message.dst_peer != 0):
-						printerr("Error: Received a non-JOIN message from an orphan. Expecting JOIN messages from orphans.")
+						push_error("Error: Received a non-JOIN message from an orphan. Expecting JOIN messages from orphans.")
 						var reply = Message.new(Message.Type.ERROR, 0, 0, "Expecting JOIN messages from orphans.").as_json().to_utf8_buffer()
 						orphan.put_packet(reply)
 						# Keep processing packets until we meet a valid JOIN.
@@ -89,15 +91,15 @@ func _process(delta) -> void:
 						var session_code = message.body
 						# If no matching session is found, reply with an ERROR.
 						if !(session_code in _open_sessions):
-							printerr("Error: Received a JOIN to a nonexistant session from an orphan. Expecting JOIN message bodies to contain codes for existing sessions, or an empty string. \"{session_code}\" was neither of two.")
+							push_error("Error: Received a JOIN to a nonexistant session from an orphan. Expecting JOIN message bodies to contain codes for existing sessions, or an empty string. \"{session_code}\" was neither of two.")
 							var reply = Message.new(Message.Type.ERROR, 0, 0, "Expecting JOIN message bodies to contain codes for existing sessions, or an empty string. \"{session_code}\" was neither of two.".format({"session_code": session_code})).as_json().to_utf8_buffer()
 							orphan.put_packet(reply)
 							continue
 						# Else, we have a matching session. Move this orphan to it, and notify all session members.
 						var open_session = _open_sessions[session_code]
-						var peer_id = randi()
+						var peer_id = randi_range(1, 1<<31 -1)
 						while (peer_id in open_session) || (peer_id == 0):
-							peer_id = randi()
+							peer_id = randi_range(1, 1<<31 -1)
 						_orphans.erase(orphan)
 						open_session[peer_id] = orphan
 						var reply = Message.new(Message.Type.JOIN, 0, peer_id, session_code).as_json().to_utf8_buffer()
@@ -125,7 +127,7 @@ func _process(delta) -> void:
 			match peer.get_ready_state():
 				# This is not possible: the peer should be pushed to STATE_OPEN during orphan stage.
 				WebSocketPeer.State.STATE_CONNECTING:
-					printerr("Error: Found a peer of an open session in STATE_CONNECTING.")
+					push_error("Error: Found a peer of an open session in STATE_CONNECTING.")
 					continue
 				# In process of closing, or already closed. If this peer isn't a host, notify its disconnection. If it is a host, disconnect all peers and move them to orphans.
 				WebSocketPeer.State.STATE_CLOSING, WebSocketPeer.State.STATE_CLOSED:
@@ -145,26 +147,28 @@ func _process(delta) -> void:
 				# Open socket. Read packets from it.
 				WebSocketPeer.State.STATE_OPEN:
 					while peer.get_available_packet_count() != 0:
-						var message = Message.from_json(peer.get_packet().get_string_from_utf8())
+						var json_string = peer.get_packet().get_string_from_utf8()
+						debug_print(json_string)
+						var message = Message.from_json(json_string)
 						# If received message wasn't properly formatted, send back an ERROR.
 						if !message:
-							printerr("Error: Received a malformed message from peer {peer_id} of an open session \"{session_code}\". Expecting properly formatted messages.".format({"peer_id": peer_id, "session_code": session_code }))
+							push_error("Error: Received a malformed message from peer {peer_id} of an open session \"{session_code}\". Expecting properly formatted messages.".format({"peer_id": peer_id, "session_code": session_code }))
 							var reply = Message.new(Message.Type.ERROR, 0, peer_id, "Expecting properly formatted messages.").as_json().to_utf8_buffer()
 							peer.put_packet(reply)
 							continue
-						# If received message is a ERROR, printerr.
+						# If received message is a ERROR, push_error.
 						if message.type == Message.Type.ERROR:
-							printerr("Error: Received a ERROR message from peer {peer_id} of an open session \"{session_code}\". Error body was: {body}".format({ "peer_id": peer_id, "session_code": session_code, "body": message.body }))
+							push_error("Error: Received a ERROR message from peer {peer_id} of an open session \"{session_code}\". Error body was: {body}".format({ "peer_id": peer_id, "session_code": session_code, "body": message.body }))
 							continue
 						# If received message isn't a SEAL or a RELAY, send back an ERROR.
 						if (message.type != Message.Type.SEAL) && (message.type != Message.Type.RELAY):
-							printerr("Error: Received a non-SEAL/RELAY message from peer {peer_id} of an open session \"{session_code}\". Expecting SEAL or RELAY messages from a peer of an open session.".format({"peer_id": peer_id, "session_code": session_code }))
+							push_error("Error: Received a non-SEAL/RELAY message from peer {peer_id} of an open session \"{session_code}\". Expecting SEAL or RELAY messages from a peer of an open session.".format({"peer_id": peer_id, "session_code": session_code }))
 							var reply = Message.new(Message.Type.ERROR, 0, peer_id, "Expecting SEAL or RELAY messages from a peer of an open session.").as_json().to_utf8_buffer()
 							peer.put_packet(reply)
 							continue
 						# If `src_peer` is trying to impersonate someone else, send back an ERROR.
 						if message.src_peer != peer_id:
-							printerr("Error: Received a message with src_peer {src_peer} from peer {peer_id} of an open session \"{session_code}\". Expecting messages to have src_peer matching its peer id.".format({"src_peer": message.src_peer, "peer_id": peer_id, "session_code": session_code }))
+							push_error("Error: Received a message with src_peer {src_peer} from peer {peer_id} of an open session \"{session_code}\". Expecting messages to have src_peer matching its peer id.".format({"src_peer": message.src_peer, "peer_id": peer_id, "session_code": session_code }))
 							var reply = Message.new(Message.Type.ERROR, 0, peer_id, "Expecting messages to have src_peer matching its peer id.").as_json().to_utf8_buffer()
 							peer.put_packet(reply)
 							continue
@@ -172,7 +176,7 @@ func _process(delta) -> void:
 						if message.type == Message.Type.SEAL:
 							# If the SEAL is not from a host, or not for the server, send back an ERROR.
 							if (message.src_peer != 1) || (message.dst_peer != 0):
-								printerr("Error: Received a SEAL message with src_peer {src_peer} and dst_peer {dst_peer} from peer {peer_id} of an open session \"{session_code}\". Expecting SEAL messages to have src_peer of 1 (the host) and dst_peer of 0 (the server).".format({"src_peer": message.src_peer, "dst_peer": message.dst_peer, "peer_id": peer_id, "session_code": session_code }))
+								push_error("Error: Received a SEAL message with src_peer {src_peer} and dst_peer {dst_peer} from peer {peer_id} of an open session \"{session_code}\". Expecting SEAL messages to have src_peer of 1 (the host) and dst_peer of 0 (the server).".format({"src_peer": message.src_peer, "dst_peer": message.dst_peer, "peer_id": peer_id, "session_code": session_code }))
 								var reply = Message.new(Message.Type.ERROR, 0, peer_id, "Expecting SEAL messages to have src_peer of 1 (the host) and dst_peer of 0 (the server).").as_json().to_utf8_buffer()
 								peer.put_packet(reply)
 								continue
@@ -186,7 +190,7 @@ func _process(delta) -> void:
 						if message.type == Message.Type.RELAY:
 							# If the RELAY has an invalid dst_peer, send back an ERROR.
 							if !(message.dst_peer in open_session):
-								printerr("Error: Received a RELAY message with dst_peer {dst_peer} from peer {peer_id} of an open session \"{session_code}\". Expecting RELAY messages to have valid dst_peer ids.".format({"dst_peer": message.dst_peer, "peer_id": peer_id, "session_code": session_code }))
+								push_error("Error: Received a RELAY message with dst_peer {dst_peer} from peer {peer_id} of an open session \"{session_code}\". Expecting RELAY messages to have valid dst_peer ids.".format({"dst_peer": message.dst_peer, "peer_id": peer_id, "session_code": session_code }))
 								var reply = Message.new(Message.Type.ERROR, 0, peer_id, "Expecting RELAY messages to have valid dst_peer ids.").as_json().to_utf8_buffer()
 								peer.put_packet(reply)
 								continue
@@ -216,7 +220,7 @@ func _process(delta) -> void:
 			match peer.get_ready_state():
 				# This is not possible: the peer should be pushed to STATE_OPEN during orphan stage.
 				WebSocketPeer.State.STATE_CONNECTING:
-					printerr("Error: Found a peer of a sealed session in STATE_CONNECTING.")
+					push_error("Error: Found a peer of a sealed session in STATE_CONNECTING.")
 					continue
 				# In process of closing, or already closed.
 				WebSocketPeer.State.STATE_CLOSING, WebSocketPeer.State.STATE_CLOSED:
@@ -237,26 +241,28 @@ func _process(delta) -> void:
 				# Open socket. Read packets from it.
 				WebSocketPeer.State.STATE_OPEN:
 					while peer.get_available_packet_count() != 0:
-						var message = Message.from_json(peer.get_packet().get_string_from_utf8())
+						var json_string = peer.get_packet().get_string_from_utf8()
+						debug_print(json_string)
+						var message = Message.from_json(json_string)
 						# If received message wasn't properly formatted, send back an ERROR.
 						if !message:
-							printerr("Error: Received a malformed message from peer {peer_id} of a sealed session \"{session_code}\". Expecting properly formatted messages.".format({"peer_id": peer_id, "session_code": session_code }))
+							push_error("Error: Received a malformed message from peer {peer_id} of a sealed session \"{session_code}\". Expecting properly formatted messages.".format({"peer_id": peer_id, "session_code": session_code }))
 							var reply = Message.new(Message.Type.ERROR, 0, peer_id, "Expecting properly formatted messages.").as_json().to_utf8_buffer()
 							peer.put_packet(reply)
 							continue
-						# If received message is a ERROR, printerr.
+						# If received message is a ERROR, push_error.
 						if message.type == Message.Type.ERROR:
-							printerr("Error: Received a ERROR message from peer {peer_id} of a sealed session \"{session_code}\". Error body was: {body}".format({ "peer_id": peer_id, "session_code": session_code, "body": message.body }))
+							push_error("Error: Received a ERROR message from peer {peer_id} of a sealed session \"{session_code}\". Error body was: {body}".format({ "peer_id": peer_id, "session_code": session_code, "body": message.body }))
 							continue
 						# If received message isn't a READY or a RELAY, send back an ERROR.
 						if (message.type != Message.Type.READY) && (message.type != Message.Type.RELAY):
-							printerr("Error: Received a non-READY/RELAY message from peer {peer_id} of a sealed session \"{session_code}\". Expecting READY or RELAY messages from a peer of an sealed session.".format({"peer_id": peer_id, "session_code": session_code }))
+							push_error("Error: Received a non-READY/RELAY message from peer {peer_id} of a sealed session \"{session_code}\". Expecting READY or RELAY messages from a peer of an sealed session.".format({"peer_id": peer_id, "session_code": session_code }))
 							var reply = Message.new(Message.Type.ERROR, 0, peer_id, "Expecting READY or RELAY messages from a peer of an sealed session.").as_json().to_utf8_buffer()
 							peer.put_packet(reply)
 							continue
 						# If `src_peer` is trying to impersonate someone else, send back an ERROR.
 						if message.src_peer != peer_id:
-							printerr("Error: Received a message with src_peer {src_peer} from peer {peer_id} of a sealed session \"{session_code}\". Expecting messages to have src_peer matching its peer id.".format({"src_peer": message.src_peer, "peer_id": peer_id, "session_code": session_code }))
+							push_error("Error: Received a message with src_peer {src_peer} from peer {peer_id} of a sealed session \"{session_code}\". Expecting messages to have src_peer matching its peer id.".format({"src_peer": message.src_peer, "peer_id": peer_id, "session_code": session_code }))
 							var reply = Message.new(Message.Type.ERROR, 0, peer_id, "Expecting messages to have src_peer matching its peer id.").as_json().to_utf8_buffer()
 							peer.put_packet(reply)
 							continue
@@ -264,7 +270,7 @@ func _process(delta) -> void:
 						if message.type == Message.Type.READY:
 							# If the READY is not for the server, send back an ERROR.
 							if message.dst_peer != 0:
-								printerr("Error: Received a READY message with dst_peer {dst_peer} from peer {peer_id} of a sealed session \"{session_code}\". Expecting READY messages to have dst_peer of 0 (the server).".format({"dst_peer": message.dst_peer, "peer_id": peer_id, "session_code": session_code }))
+								push_error("Error: Received a READY message with dst_peer {dst_peer} from peer {peer_id} of a sealed session \"{session_code}\". Expecting READY messages to have dst_peer of 0 (the server).".format({"dst_peer": message.dst_peer, "peer_id": peer_id, "session_code": session_code }))
 								var reply = Message.new(Message.Type.ERROR, 0, peer_id, "Expecting READY messages to have dst_peer of 0 (the server).").as_json().to_utf8_buffer()
 								peer.put_packet(reply)
 								continue
@@ -275,7 +281,7 @@ func _process(delta) -> void:
 						if message.type == Message.Type.RELAY:
 							# If the RELAY has an invalid dst_peer, send back an ERROR.
 							if !(message.dst_peer in sealed_session):
-								printerr("Error: Received a RELAY message with dst_peer {dst_peer} from peer {peer_id} of a sealed session \"{session_code}\". Expecting RELAY messages to have valid dst_peer ids.".format({"dst_peer": message.dst_peer, "peer_id": peer_id, "session_code": session_code }))
+								push_error("Error: Received a RELAY message with dst_peer {dst_peer} from peer {peer_id} of a sealed session \"{session_code}\". Expecting RELAY messages to have valid dst_peer ids.".format({"dst_peer": message.dst_peer, "peer_id": peer_id, "session_code": session_code }))
 								var reply = Message.new(Message.Type.ERROR, 0, peer_id, "Expecting RELAY messages to have valid dst_peer ids.").as_json().to_utf8_buffer()
 								peer.put_packet(reply)
 								continue
@@ -354,7 +360,7 @@ func _notify_ready(sealed_session: Dictionary) -> void:
 			var ready = Message.new(Message.Type.READY, 0, peer_id, null).as_json().to_utf8_buffer()
 			peer.put_packet(ready)
 		else:
-			printerr("Error: `sealed_session` has a non-OPEN peer.")
+			push_error("Error: `sealed_session` has a non-OPEN peer.")
 		
 
 static func _into_sealed_session(open_session: Dictionary) -> Dictionary:
@@ -373,4 +379,6 @@ static func _random_string() -> String:
 		random_string += _alphanumerals[randi() % length]
 	return random_string
 	
-
+func debug_print(str: String) -> void:
+	# print(str)
+	pass
