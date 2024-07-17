@@ -28,9 +28,11 @@ func _on_host_pressed():
 		return
 	_log("Hosted a session. Session code is {session_code}".format({"session_code": session_code}))
 	$Background/MarginContainer/App/SessionClientUI/SessionCodeContainer/SessionCode.text = session_code
+	
 	$Background/MarginContainer/App/SessionClientUI/SessionCodeContainer/SessionCode.editable = false
 	$Background/MarginContainer/App/SessionClientUI/HostJoinContainer/Host.disabled = true
 	$Background/MarginContainer/App/SessionClientUI/HostJoinContainer/Join.disabled = true
+	
 	$Background/MarginContainer/App/SessionClientUI/Seal.disabled = false
 	$Background/MarginContainer/App/SessionClientUI/Leave.disabled = false
 
@@ -48,9 +50,11 @@ func _on_join_pressed():
 		_log("Join failed.")
 		return
 	_log("Joined a session.")
+	
 	$Background/MarginContainer/App/SessionClientUI/SessionCodeContainer/SessionCode.editable = false
 	$Background/MarginContainer/App/SessionClientUI/HostJoinContainer/Host.disabled = true
 	$Background/MarginContainer/App/SessionClientUI/HostJoinContainer/Join.disabled = true
+	
 	$Background/MarginContainer/App/SessionClientUI/Seal.disabled = true
 	$Background/MarginContainer/App/SessionClientUI/Leave.disabled = false
 
@@ -76,8 +80,10 @@ func _handle_disconnect():
 		$Background/MarginContainer/App/SessionClientUI/SessionCodeContainer/SessionCode.editable = true
 		$Background/MarginContainer/App/SessionClientUI/HostJoinContainer/Host.disabled = false
 		$Background/MarginContainer/App/SessionClientUI/HostJoinContainer/Join.disabled = false
+		
 		$Background/MarginContainer/App/SessionClientUI/Seal.disabled = true
 		$Background/MarginContainer/App/SessionClientUI/Leave.disabled = true
+		
 		$Background/MarginContainer/App/ChatUI/SendContainer/Input.text = ""
 		$Background/MarginContainer/App/ChatUI/SendContainer/Input.editable = false
 		$Background/MarginContainer/App/ChatUI/SendContainer/Send.disabled = true
@@ -85,6 +91,14 @@ func _handle_disconnect():
 			multiplayer.peer_disconnected.disconnect(_on_peer_disconnected)
 		return
 	_log("Session is now ready.")
+	
+	$Background/MarginContainer/App/SessionClientUI/SessionCodeContainer/SessionCode.editable = false
+	$Background/MarginContainer/App/SessionClientUI/HostJoinContainer/Host.disabled = true
+	$Background/MarginContainer/App/SessionClientUI/HostJoinContainer/Join.disabled = true
+	
+	$Background/MarginContainer/App/SessionClientUI/Seal.disabled = true
+	$Background/MarginContainer/App/SessionClientUI/Leave.disabled = false
+	
 	$Background/MarginContainer/App/ChatUI/PanelContainer/Chat.text = ""
 	$Background/MarginContainer/App/ChatUI/SendContainer/Input.text = ""
 	$Background/MarginContainer/App/ChatUI/SendContainer/Input.editable = true
