@@ -5,7 +5,7 @@ extends Node
 func _ready():
 	# If this instance is headless, immediately switch to server.
 	if DisplayServer.get_name() == "headless":
-		get_tree().change_scene_to_packed(load("res://tests/simple_chat/SimpleChatServer.tscn"))
+		get_tree().call_deferred("change_scene_to_packed", load("res://tests/simple_chat/SimpleChatServer.tscn"))
 
 func _log(log: String) -> void:
 	$Background/MarginContainer/App/SessionClientUI/Log.append_text(log+"\n")
