@@ -48,7 +48,7 @@ text = "URL:"
 layout_mode = 2
 size_flags_horizontal = 3
 theme = ExtResource("1_syhql")
-text = "ws://localhost:12345"
+text = "wss://aquacat1220.com"
 
 [node name="SessionCodeContainer" type="HBoxContainer" parent="Background/MarginContainer/App/SessionClientUI"]
 layout_mode = 2

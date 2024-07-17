@@ -32,14 +32,14 @@ func _process(delta) -> void:
 		var key: CryptoKey = CryptoKey.new()
 		if cert.load(OS.get_environment("KITTEN_ON_WEB_CERT")) || key.load(OS.get_environment("KITTEN_ON_WEB_KEY")):
 			# Failed TLS.
-			push_warning("Error: Failed to load certificate or key.")
+			push_warning("Warning: Failed to load certificate or key.")
 		else:
 			var tls_option: TLSOptions = TLSOptions.server(key, cert)
 			var tls_stream: StreamPeerTLS = StreamPeerTLS.new()
 			if tls_stream.accept_stream(stream, tls_option):
-				push_warning("Error: Failed to accept as TLS stream.")
-			else:
-				stream = tls_stream
+				push_error("Error: Failed to accept as TLS stream.")
+				continue
+			stream = tls_stream
 		var orphan = WebSocketPeer.new()
 		# If `accept_stream()` fails for some reason, ignore this stream. The client will retry if it is desperate.
 		if orphan.accept_stream(stream):
