@@ -26,21 +26,23 @@ func _process(delta) -> void:
 	
 	# First, check `listen_server` for connection attempts.
 	while _listen_server.is_connection_available():
+		var stream = _listen_server.take_connection()
+		# First try TLS.
 		var cert: X509Certificate = X509Certificate.new()
 		var key: CryptoKey = CryptoKey.new()
-		# Failed TLS.
 		if cert.load(OS.get_environment("KITTEN_ON_WEB_CERT")) || key.load(OS.get_environment("KITTEN_ON_WEB_KEY")):
-			push_error("Error: Failed to load certificate or key.")
-			get_tree().quit()
-			return
-		var tls_option: TLSOptions = TLSOptions.server(key, cert)
-		var tls_stream: StreamPeerTLS = StreamPeerTLS.new()
-		if tls_stream.accept_stream(_listen_server.take_connection(), tls_option):
-			push_error("Error: Failed to accept as TLS stream.")
-			continue
+			# Failed TLS.
+			push_warning("Error: Failed to load certificate or key.")
+		else:
+			var tls_option: TLSOptions = TLSOptions.server(key, cert)
+			var tls_stream: StreamPeerTLS = StreamPeerTLS.new()
+			if tls_stream.accept_stream(stream, tls_option):
+				push_warning("Error: Failed to accept as TLS stream.")
+			else:
+				stream = tls_stream
 		var orphan = WebSocketPeer.new()
 		# If `accept_stream()` fails for some reason, ignore this stream. The client will retry if it is desperate.
-		if orphan.accept_stream(tls_stream):
+		if orphan.accept_stream(stream):
 			push_error("Error: Failed to accept as ws stream.")
 			continue
 		_orphans.append(orphan)
